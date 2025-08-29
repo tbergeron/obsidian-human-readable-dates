@@ -1,4 +1,4 @@
-import { Plugin, PluginSettingTab, App, Setting, MarkdownView } from 'obsidian'
+import { Plugin, PluginSettingTab, App, Setting } from 'obsidian'
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
 
 interface HumanReadableDatesSettings {
@@ -13,28 +13,48 @@ class HumanReadableDateWidget extends WidgetType {
 	constructor(
 		private originalText: string, 
 		private humanReadable: string, 
-		private isLink: boolean = false
+		private isLink: boolean = false,
+		private app?: App
 	) {
 		super();
 	}
 
 	toDOM() {
-		const span = document.createElement('span');
-		span.className = 'human-readable-date';
-		span.title = `Original: ${this.originalText}`;
-		span.style.cursor = 'text';
-		
-		if (this.isLink) {
-			span.textContent = this.humanReadable;
-			span.style.color = 'var(--link-color)';
-			span.style.textDecoration = 'underline';
+		if (this.isLink && this.app) {
+			// Create a clickable link for bracketed dates
+			const link = document.createElement('a');
+			link.className = 'human-readable-date internal-link';
+			link.textContent = this.humanReadable;
+			link.title = `Original: ${this.originalText}`;
+			link.style.cursor = 'pointer';
+			link.style.color = 'var(--link-color)';
+			link.style.textDecoration = 'underline';
+			
+			// Extract the date from the original text (remove [[ and ]])
+			const linkTarget = this.originalText.replace(/^\[\[|\]\]$/g, '');
+			
+			// Handle click to navigate to the note
+			link.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				
+				// Use Obsidian's app to open the note
+				this.app?.workspace.openLinkText(linkTarget, '', false);
+			});
+			
+			return link;
 		} else {
+			// Regular non-link widget for plain dates
+			const span = document.createElement('span');
+			span.className = 'human-readable-date';
+			span.title = `Original: ${this.originalText}`;
+			span.style.cursor = 'text';
 			span.textContent = this.humanReadable;
 			span.style.color = 'var(--text-accent)';
 			span.style.fontStyle = 'italic';
+			
+			return span;
 		}
-		
-		return span;
 	}
 }
 
@@ -66,7 +86,7 @@ export default class HumanReadableDates extends Plugin {
 	}
 
 	createLivePreviewExtension() {
-		const plugin = this;
+		const self = this;
 		
 		return ViewPlugin.fromClass(
 			class {
@@ -83,14 +103,15 @@ export default class HumanReadableDates extends Plugin {
 				}
 
 				buildDecorations(view: EditorView): DecorationSet {
-					const decorations: any[] = [];
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const decorations: any[] = [];
 					const doc = view.state.doc;
 					const text = doc.toString();
 					const selection = view.state.selection.main;
 
 					// Create regex for date matching
-					const dateRegex = plugin.createDateRegex(plugin.settings.dateFormat);
-					const bracketedDateRegex = plugin.createBracketedDateRegex(plugin.settings.dateFormat);
+					const dateRegex = self.createDateRegex(self.settings.dateFormat);
+					const bracketedDateRegex = self.createBracketedDateRegex(self.settings.dateFormat);
 
 					// Process bracketed dates first
 					let match;
@@ -98,7 +119,7 @@ export default class HumanReadableDates extends Plugin {
 					while ((match = bracketedDateRegex.exec(text)) !== null) {
 						const fullMatch = match[0];
 						const dateString = match[1];
-						const humanReadable = plugin.formatDateAsHumanReadable(dateString);
+						const humanReadable = self.formatDateAsHumanReadable(dateString);
 
 						if (humanReadable) {
 							const from = match.index;
@@ -110,7 +131,7 @@ export default class HumanReadableDates extends Plugin {
 							if (!cursorInRange) {
 								decorations.push(
 									Decoration.widget({
-										widget: new HumanReadableDateWidget(fullMatch, humanReadable, true),
+										widget: new HumanReadableDateWidget(fullMatch, humanReadable, true, self.app),
 										side: 1
 									}).range(from)
 								);
@@ -148,7 +169,7 @@ export default class HumanReadableDates extends Plugin {
 						);
 						
 						if (!overlaps) {
-							const humanReadable = plugin.formatDateAsHumanReadable(dateString);
+							const humanReadable = self.formatDateAsHumanReadable(dateString);
 							if (humanReadable) {
 								// Only show overlay if cursor is not within this range
 								const cursorInRange = selection.from >= from && selection.from <= to;
@@ -156,7 +177,7 @@ export default class HumanReadableDates extends Plugin {
 								if (!cursorInRange) {
 									decorations.push(
 										Decoration.widget({
-											widget: new HumanReadableDateWidget(dateString, humanReadable, false),
+											widget: new HumanReadableDateWidget(dateString, humanReadable, false, self.app),
 											side: 1
 										}).range(from)
 									);
@@ -172,11 +193,11 @@ export default class HumanReadableDates extends Plugin {
 						}
 					}
 
-					return Decoration.set(decorations.sort((a: any, b: any) => a.from - b.from));
+					return Decoration.set(decorations.sort((a, b) => a.from - b.from));
 				}
 			},
 			{
-				decorations: (v: any) => v.decorations,
+				decorations: (v) => v.decorations,
 			}
 		);
 	}
@@ -345,8 +366,8 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 				.setPlaceholder('ddd MMM DD YYYY HH:mm')
 				.setValue(this.plugin.settings.dateFormat)
 				.onChange(async (value) => {
-					this.plugin.settings.dateFormat = value;
-					await this.plugin.saveSettings();
+									this.plugin.settings.dateFormat = value;
+				await this.plugin.saveSettings();
 				}));
 
 		containerEl.createEl('p', {
