@@ -1,0 +1,17 @@
+/* Human Readable Dates Plugin Styles */
+
+.human-readable-date-wrapper {
+    position: relative;
+    display: inline;
+}
+
+.human-readable-date {
+    cursor: help;
+    transition: color 0.2s ease, border-bottom-color 0.2s ease;
+}
+
+/* Ensure the overlay displays properly */
+.human-readable-date-wrapper .human-readable-date {
+    position: relative;
+    z-index: 1;
+}
