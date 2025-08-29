@@ -1,7 +1,7 @@
 {
 	"id": "human-readable-dates",
 	"name": "Human Readable Dates",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"minAppVersion": "0.15.0",
 	"description": "Human readable dates.",
 	"author": "Tommy Bergeron",
