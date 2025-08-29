@@ -1,6 +1,6 @@
 {
 	"name": "human-readable-dates",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Close those pesky new tabs.",
 	"main": "main.js",
 	"scripts": {
