@@ -1,0 +1,2 @@
+# Close New Tabs (and Plugin no longer active)
+Useful when used with [obsidian-lazy-plugins](https://github.com/alangrainger/obsidian-lazy-plugins) as plugins that are loaded later always create so many empty new tabs. Now you have a quick way to close them all!
