@@ -330,9 +330,8 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Date format')
-			.setDesc('The format of dates to look for and replace. Use standard format tokens.')
+			.setDesc('The format of dates to look for and replace.')
 			.addText(text => text
-				.setPlaceholder('ddd MMM DD YYYY HH:mm')
 				.setValue(this.plugin.settings.dateFormat)
 				.onChange(async (value) => {
 					this.plugin.settings.dateFormat = value;
@@ -340,20 +339,7 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 				}));
 
 		containerEl.createEl('p', {
-			text: 'Examples of supported formats:',
-			cls: 'setting-item-description'
-		});
-
-		const examplesList = containerEl.createEl('ul', {
-			cls: 'setting-item-description'
-		});
-
-		examplesList.createEl('li', {text: 'Fri Aug 29 2025 19:20 (with time)'});
-		examplesList.createEl('li', {text: 'Fri Aug 29 2025 (without time)'});
-		examplesList.createEl('li', {text: '[[Fri Aug 29 2025]] (in square brackets)'});
-
-		containerEl.createEl('p', {
-			text: 'Note: This plugin only works in Live Preview mode. Dates will show as human-readable text (e.g., "Yesterday", "Tomorrow") but revert to original format when you move your cursor over them for editing.',
+			text: 'This plugin only works in live preview mode. Dates show as human-readable text but revert to the original format when you move your cursor over them for editing.',
 			cls: 'setting-item-description'
 		});
 	}
