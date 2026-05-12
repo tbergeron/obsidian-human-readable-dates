@@ -329,10 +329,6 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('General')
-			.setHeading();
-
-		new Setting(containerEl)
 			.setName('Date format')
 			.setDesc('The format of dates to look for and replace. Use standard format tokens.')
 			.addText(text => text
