@@ -30,11 +30,11 @@ class HumanReadableDateWidget extends WidgetType {
 
 			const linkTarget = this.originalText.replace(/^\[\||\]\]$/g, '');
 
-			link.addEventListener('click', async (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				await this.app?.workspace.openLinkText(linkTarget, '', false);
-			});
+		link.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			void this.app?.workspace.openLinkText(linkTarget, '', false);
+		});
 
 			return link;
 		} else {
@@ -329,7 +329,7 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Human Readable Dates Settings')
+			.setName('General')
 			.setHeading();
 
 		new Setting(containerEl)
