@@ -1,7 +1,7 @@
 {
 	"id": "human-readable-dates",
 	"name": "Human Readable Dates",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"minAppVersion": "0.16.0",
 	"description": "Display dates in a human-readable format like 'Yesterday' or 'Tomorrow'.",
 	"author": "Tommy Bergeron",
