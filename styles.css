@@ -15,3 +15,15 @@
     position: relative;
     z-index: 1;
 }
+
+.human-readable-date-link {
+    cursor: pointer;
+    color: var(--link-color);
+    text-decoration: underline;
+}
+
+.human-readable-date-plain {
+    cursor: text;
+    color: var(--text-accent);
+    font-style: italic;
+}
