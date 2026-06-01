@@ -1,4 +1,4 @@
-import { Plugin, PluginSettingTab, App, Setting } from 'obsidian'
+import { moment, Plugin, PluginSettingTab, App, Setting } from 'obsidian'
 import { Range } from '@codemirror/state'
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
 
@@ -48,58 +48,173 @@ class HumanReadableDateWidget extends WidgetType {
 	}
 }
 
-function createDateRegex(format: string): RegExp {
-	const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-	const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Legacy format where trailing HH:mm is treated as optional for backward
+// compatibility. The original plugin allowed "Thu Aug 28 2025" (no time) to
+// match the default format. Only this exact format string gets the optional
+// time treatment; other formats with HH:mm require the time component.
+const LEGACY_OPTIONAL_TIME_FORMAT = 'ddd MMM DD YYYY HH:mm'
+const LEGACY_OPTIONAL_TIME_FORMAT_NO_TIME = 'ddd MMM DD YYYY'
 
-	const dayPattern = `(${dayNames.join('|')})`;
-	const monthPattern = `(${monthNames.join('|')})`;
-	const dayOfMonthPattern = '(\\d{1,2})';
-	const yearPattern = '(\\d{4})';
-	const timePattern = '(?:\\s+(\\d{1,2}):(\\d{2}))?';
-
-	const pattern = `${dayPattern}\\s+${monthPattern}\\s+${dayOfMonthPattern}\\s+${yearPattern}${timePattern}`;
-
-	return new RegExp(pattern, 'g');
+interface CompiledDateFormat {
+	/** Regex source for candidate detection (no flags, no boundaries) */
+	source: string
 }
 
-function createBracketedDateRegex(format: string): RegExp {
-	const datePattern = createDateRegex(format).source;
-	const bracketedPattern = `\\[\\[(${datePattern})\\]\\]`;
-	return new RegExp(bracketedPattern, 'g');
+const dateFormatCache = new Map<string, CompiledDateFormat>()
+
+// Moment-style tokens mapped to permissive detection regex patterns.
+// Ordered longest-first so the scanner matches multi-char tokens before
+// their single-char prefixes (e.g. MMMM before MMM before MM before M).
+// Covers the commonly-used tokens; exotic Moment tokens not listed here
+// will be treated as literal separator characters (harmless but unmatched).
+const TOKEN_PATTERNS: Array<{ token: string; pattern: string }> = [
+	// 4-char
+	{ token: 'YYYY', pattern: '\\d{4}' },
+	{ token: 'MMMM', pattern: '[A-Za-z]+' },
+	{ token: 'dddd', pattern: '[A-Za-z]+' },
+	// 3-char
+	{ token: 'MMM', pattern: '[A-Za-z]+' },
+	{ token: 'ddd', pattern: '[A-Za-z]+' },
+	{ token: 'SSS', pattern: '\\d{3}' },
+	// 2-char
+	{ token: 'YY', pattern: '\\d{2}' },
+	{ token: 'MM', pattern: '\\d{2}' },
+	{ token: 'DD', pattern: '\\d{2}' },
+	{ token: 'dd', pattern: '[A-Za-z]{2}' },
+	{ token: 'HH', pattern: '\\d{2}' },
+	{ token: 'hh', pattern: '\\d{2}' },
+	{ token: 'mm', pattern: '\\d{2}' },
+	{ token: 'ss', pattern: '\\d{2}' },
+	{ token: 'ZZ', pattern: '[+-]\\d{4}' },
+	// 1-char
+	{ token: 'M', pattern: '\\d{1,2}' },
+	{ token: 'D', pattern: '\\d{1,2}' },
+	{ token: 'd', pattern: '\\d' },
+	{ token: 'H', pattern: '\\d{1,2}' },
+	{ token: 'h', pattern: '\\d{1,2}' },
+	{ token: 'm', pattern: '\\d{1,2}' },
+	{ token: 's', pattern: '\\d{1,2}' },
+	{ token: 'Z', pattern: '[+-]\\d{2}:\\d{2}' },
+	{ token: 'A', pattern: 'AM|PM' },
+	{ token: 'a', pattern: 'am|pm' },
+]
+
+/**
+ * Compile a Moment format string into a permissive regex source for candidate
+ * detection. The regex is deliberately loose — strict validation is deferred to
+ * Moment's `moment(candidate, format, true)` in `parseDateString`.
+ *
+ * Supports:
+ *   - All tokens listed in TOKEN_PATTERNS
+ *   - Bracket literals [...]
+ *   - Unknown characters are treated as regex-escaped literals
+ *
+ * Returns null when zero recognized tokens are found.
+ */
+function compileDateFormat(format: string): CompiledDateFormat | null {
+	let source = ''
+	let i = 0
+	let tokenCount = 0
+
+	while (i < format.length) {
+		// Bracket literal: [escaped text]
+		if (format[i] === '[') {
+			const close = format.indexOf(']', i + 1)
+			const literal = close === -1 ? format.slice(i + 1) : format.slice(i + 1, close)
+			source += literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+			i = close === -1 ? format.length : close + 1
+			continue
+		}
+
+		// Try known tokens (longest match first)
+		const rest = format.slice(i)
+		let matched = false
+		for (const { token, pattern } of TOKEN_PATTERNS) {
+			if (rest.startsWith(token)) {
+				source += pattern
+				i += token.length
+				matched = true
+				tokenCount++
+				break
+			}
+		}
+		if (matched) continue
+
+		// Unknown character — escape and treat as literal separator
+		source += format[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+		i++
+	}
+
+	if (tokenCount === 0) return null
+
+	// Legacy exception: make trailing " HH:mm" optional so dates without
+	// time (e.g. "Thu Aug 28 2025") still produce candidate matches.
+	if (format === LEGACY_OPTIONAL_TIME_FORMAT) {
+		const timeMarker = '\\d{2}:\\d{2}'
+		const timeIdx = source.lastIndexOf(timeMarker)
+		if (timeIdx !== -1) {
+			const sepIdx = source.lastIndexOf(' ', timeIdx - 1)
+			if (sepIdx !== -1) {
+				source = source.slice(0, sepIdx) + '(?:' + source.slice(sepIdx) + ')?'
+			}
+		}
+	}
+
+	return { source }
 }
 
+function getCachedCompiledFormat(format: string): CompiledDateFormat | null {
+	let compiled: CompiledDateFormat | null | undefined = dateFormatCache.get(format)
+	if (!compiled) {
+		compiled = compileDateFormat(format)
+		if (compiled) {
+			dateFormatCache.set(format, compiled)
+		}
+	}
+	return compiled ?? null
+}
+
+function createDateRegex(format: string): RegExp | null {
+	const compiled = getCachedCompiledFormat(format)
+	if (!compiled) return null
+	return new RegExp('\\b' + compiled.source + '\\b', 'g')
+}
+
+function createBracketedDateRegex(format: string): RegExp | null {
+	const dateRegex = createDateRegex(format)
+	if (!dateRegex) return null
+	return new RegExp('\\[\\[(' + dateRegex.source + ')\\]\\]', 'g')
+}
+
+/**
+ * Parse a candidate date string using Moment strict mode.
+ * Returns a Date if valid and finite, null otherwise.
+ *
+ * The detection regex (createDateRegex) is permissive — this function is
+ * the gate that rejects non-dates and invalid dates like 2026-02-31.
+ *
+ * Legacy exception: the default format "ddd MMM DD YYYY HH:mm" also
+ * accepts dates without the time component.
+ */
 function parseDateString(dateString: string, format: string): Date | null {
-	const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-	const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-	const dayPattern = `(${dayNames.join('|')})`;
-	const monthPattern = `(${monthNames.join('|')})`;
-	const dayOfMonthPattern = '(\\d{1,2})';
-	const yearPattern = '(\\d{4})';
-	const timePattern = '(?:\\s+(\\d{1,2}):(\\d{2}))?';
-
-	const pattern = `${dayPattern}\\s+${monthPattern}\\s+${dayOfMonthPattern}\\s+${yearPattern}${timePattern}`;
-	const regex = new RegExp(pattern);
-
-	const match = dateString.match(regex);
-	if (!match) {
-		return null;
+	// Strict Moment parsing — third argument `true` enables strict mode
+	const m = moment(dateString, format, true)
+	if (m.isValid()) {
+		const d = m.toDate()
+		if (Number.isFinite(d.getTime())) return d
 	}
 
-	const [, , monthName, dayStr, yearStr, hourStr, minuteStr] = match;
-
-	const monthIndex = monthNames.indexOf(monthName);
-	if (monthIndex === -1) {
-		return null;
+	// Legacy exception: if the full format fails and this is the legacy
+	// default format, try without the time component.
+	if (format === LEGACY_OPTIONAL_TIME_FORMAT) {
+		const mFallback = moment(dateString, LEGACY_OPTIONAL_TIME_FORMAT_NO_TIME, true)
+		if (mFallback.isValid()) {
+			const d = mFallback.toDate()
+			if (Number.isFinite(d.getTime())) return d
+		}
 	}
 
-	const day = parseInt(dayStr, 10);
-	const year = parseInt(yearStr, 10);
-	const hour = hourStr ? parseInt(hourStr, 10) : 0;
-	const minute = minuteStr ? parseInt(minuteStr, 10) : 0;
-
-	return new Date(year, monthIndex, day, hour, minute);
+	return null
 }
 
 function formatDateAsHumanReadable(dateString: string, format: string): string | null {
@@ -203,12 +318,27 @@ export default class HumanReadableDates extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		this.refreshDecorations()
+	}
+
+	refreshDecorations() {
+		requestAnimationFrame(() => {
+			this.app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
+				const view = leaf.view as { editor?: { cm?: EditorView } } | null
+				if (view?.editor?.cm) {
+					view.editor.cm.dispatch({
+						selection: view.editor.cm.state.selection,
+						scrollIntoView: false
+					})
+				}
+			})
+		})
 	}
 
 	createLivePreviewExtension() {
-		const app = this.app;
-		const settings = this.settings;
-		const format = settings.dateFormat;
+		// eslint-disable-next-line @typescript-eslint/no-this-alias
+		const plugin = this
+		const app = this.app
 
 		return ViewPlugin.fromClass(
 			class {
@@ -230,20 +360,30 @@ export default class HumanReadableDates extends Plugin {
 					const text = doc.toString();
 					const selection = view.state.selection.main;
 
+					const format = plugin.settings.dateFormat
+
 					const dateRegex = createDateRegex(format);
 					const bracketedDateRegex = createBracketedDateRegex(format);
+
+					if (!dateRegex || !bracketedDateRegex) {
+						return Decoration.set([])
+					}
+
+					const processedRanges: Array<{from: number, to: number}> = [];
 
 					let match;
 					bracketedDateRegex.lastIndex = 0;
 					while ((match = bracketedDateRegex.exec(text)) !== null) {
 						const fullMatch = match[0];
 						const dateString = match[1];
-						const humanReadable = formatDateAsHumanReadable(dateString, format);
+						const from = match.index
+						const to = from + fullMatch.length
+
+						processedRanges.push({ from, to })
+
+						const humanReadable = formatDateAsHumanReadable(dateString, format)
 
 						if (humanReadable) {
-							const from = match.index;
-							const to = match.index + fullMatch.length;
-
 							const cursorInRange = selection.from >= from && selection.from <= to;
 
 							if (!cursorInRange) {
@@ -261,13 +401,6 @@ export default class HumanReadableDates extends Plugin {
 								);
 							}
 						}
-					}
-
-					const processedRanges: Array<{from: number, to: number}> = [];
-
-					bracketedDateRegex.lastIndex = 0;
-					while ((match = bracketedDateRegex.exec(text)) !== null) {
-						processedRanges.push({ from: match.index, to: match.index + match[0].length });
 					}
 
 					dateRegex.lastIndex = 0;
@@ -330,17 +463,41 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Date format')
-			.setDesc('The format of dates to look for and replace.')
+			// eslint-disable-next-line obsidianmd/ui/sentence-case
+			.setDesc('Moment-style format tokens supported. Examples: YYYY-MM-DD, ddd MMM DD YYYY HH:mm, M/D/YYYY. Use [literal text] for brackets in the output.')
 			.addText(text => text
 				.setValue(this.plugin.settings.dateFormat)
 				.onChange(async (value) => {
-					this.plugin.settings.dateFormat = value;
-					await this.plugin.saveSettings();
-				}));
+					this.plugin.settings.dateFormat = value
+					await this.plugin.saveSettings()
+					this.updateFormatWarning(value)
+				}))
+
+		this.formatWarningEl = containerEl.createDiv({
+			cls: 'setting-item-description'
+		})
+		this.updateFormatWarning(this.plugin.settings.dateFormat)
 
 		containerEl.createEl('p', {
 			text: 'This plugin only works in live preview mode. Dates show as human-readable text but revert to the original format when you move your cursor over them for editing.',
 			cls: 'setting-item-description'
 		});
+	}
+
+	private formatWarningEl?: HTMLElement
+
+	private updateFormatWarning(format: string): void {
+		if (!this.formatWarningEl) return
+		if (!format || format.trim().length === 0) {
+			this.formatWarningEl.setText('The date format is empty. No dates will be detected.')
+			return
+		}
+		const compiled = compileDateFormat(format)
+		if (!compiled) {
+			// eslint-disable-next-line obsidianmd/ui/sentence-case
+			this.formatWarningEl.setText('No recognized date tokens found. Use YYYY, MM, MMM, DD, ddd, HH, mm.')
+		} else {
+			this.formatWarningEl.setText('')
+		}
 	}
 }
