@@ -1,6 +1,6 @@
 {
 	"name": "human-readable-dates",
-	"version": "1.0.6",
+	"version": "1.0.7",
 	"description": "Display dates in a human-readable format like 'Yesterday' or 'Tomorrow'.",
 	"main": "main.js",
 	"type": "module",
