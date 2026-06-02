@@ -28,7 +28,7 @@ class HumanReadableDateWidget extends WidgetType {
 			link.textContent = this.humanReadable;
 			link.title = `Original: ${this.originalText}`;
 
-			const linkTarget = this.originalText.replace(/^\[\||\]\]$/g, '');
+			const linkTarget = this.originalText.replace(/^\[\[|\]\]$/g, '');
 
 		link.addEventListener('click', (event) => {
 			event.preventDefault();
