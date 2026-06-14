@@ -10,12 +10,29 @@ const DEFAULT_SETTINGS: HumanReadableDatesSettings = {
 	dateFormat: 'ddd MMM DD YYYY HH:mm'
 }
 
+/**
+ * Strip Obsidian [[wikilink]] brackets from a string and return the link target
+ * (the part before any `|` alias separator).
+ *
+ * Examples:
+ *   "[[date]]"          → "date"
+ *   "[[target|alias]]"  → "target"
+ *   "plain"             → "plain"
+ */
+function stripWikilinkBrackets(text: string): string {
+	const inner = text.startsWith('[[') && text.endsWith(']]')
+		? text.slice(2, -2)
+		: text;
+	return inner.split('|')[0];
+}
+
 class HumanReadableDateWidget extends WidgetType {
 	constructor(
 		private originalText: string,
 		private humanReadable: string,
 		private isLink: boolean = false,
-		private app?: App
+		private app?: App,
+		private linkTarget?: string
 	) {
 		super();
 	}
@@ -28,13 +45,13 @@ class HumanReadableDateWidget extends WidgetType {
 			link.textContent = this.humanReadable;
 			link.title = `Original: ${this.originalText}`;
 
-			const linkTarget = this.originalText.replace(/^\[\||\]\]$/g, '');
+			const target = this.linkTarget ?? stripWikilinkBrackets(this.originalText);
 
-		link.addEventListener('click', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			void this.app?.workspace.openLinkText(linkTarget, '', false);
-		});
+			link.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				void this.app?.workspace.openLinkText(target, '', false);
+			});
 
 			return link;
 		} else {
@@ -181,9 +198,11 @@ function createDateRegex(format: string): RegExp | null {
 }
 
 function createBracketedDateRegex(format: string): RegExp | null {
-	const dateRegex = createDateRegex(format)
-	if (!dateRegex) return null
-	return new RegExp('\\[\\[(' + dateRegex.source + ')\\]\\]', 'g')
+	// Still validate that the format is compilable
+	const compiled = getCachedCompiledFormat(format)
+	if (!compiled) return null
+	// Match [[target]] or [[target|alias]] — date validation is done in buildDecorations
+	return new RegExp('\\[\\[([^|\\]]+)(?:\\|([^\\[\\]]+))?\\]\\]', 'g')
 }
 
 /**
@@ -375,13 +394,21 @@ export default class HumanReadableDates extends Plugin {
 					bracketedDateRegex.lastIndex = 0;
 					while ((match = bracketedDateRegex.exec(text)) !== null) {
 						const fullMatch = match[0];
-						const dateString = match[1];
+						const target = match[1];
+						const alias = match[2];
 						const from = match.index
 						const to = from + fullMatch.length
 
 						processedRanges.push({ from, to })
 
-						const humanReadable = formatDateAsHumanReadable(dateString, format)
+						// Determine date string: prefer alias, fall back to target
+						let humanReadable: string | null = null;
+						if (alias) {
+							humanReadable = formatDateAsHumanReadable(alias, format);
+						}
+						if (!humanReadable) {
+							humanReadable = formatDateAsHumanReadable(target, format);
+						}
 
 						if (humanReadable) {
 							const cursorInRange = selection.from >= from && selection.from <= to;
@@ -389,7 +416,7 @@ export default class HumanReadableDates extends Plugin {
 							if (!cursorInRange) {
 								decorations.push(
 									Decoration.widget({
-										widget: new HumanReadableDateWidget(fullMatch, humanReadable, true, app),
+										widget: new HumanReadableDateWidget(fullMatch, humanReadable, true, app, target),
 										side: 1
 									}).range(from)
 								);

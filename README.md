@@ -63,6 +63,7 @@ Non-token characters (spaces, hyphens, colons, slashes, etc.) are treated as lit
 | `Thu Aug 28 2025` (yesterday) | `Yesterday` |
 | `Sat Aug 30 2025` (tomorrow) | `Tomorrow` |
 | `[[Sun Aug 31 2025]]` (in 2 days) | `In 2 days` |
+| `[[2025-08-31|Sun Aug 31 2025]]` (aliased wikilink) | `In 2 days` (clickable, opens `2025-08-31`) |
 
 ### Examples (format: `YYYY-MM-DD`)
 
