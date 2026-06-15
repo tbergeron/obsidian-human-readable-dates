@@ -341,7 +341,7 @@ export default class HumanReadableDates extends Plugin {
 	}
 
 	refreshDecorations() {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			this.app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
 				const view = leaf.view as { editor?: { cm?: EditorView } } | null
 				if (view?.editor?.cm) {
@@ -355,8 +355,7 @@ export default class HumanReadableDates extends Plugin {
 	}
 
 	createLivePreviewExtension() {
-		// eslint-disable-next-line @typescript-eslint/no-this-alias
-		const plugin = this
+		const settings = this.settings
 		const app = this.app
 
 		return ViewPlugin.fromClass(
@@ -379,7 +378,7 @@ export default class HumanReadableDates extends Plugin {
 					const text = doc.toString();
 					const selection = view.state.selection.main;
 
-					const format = plugin.settings.dateFormat
+					const format = settings.dateFormat
 
 					const dateRegex = createDateRegex(format);
 					const bracketedDateRegex = createBracketedDateRegex(format);
@@ -490,8 +489,7 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Date format')
-			// eslint-disable-next-line obsidianmd/ui/sentence-case
-			.setDesc('Moment-style format tokens supported. Examples: YYYY-MM-DD, ddd MMM DD YYYY HH:mm, M/D/YYYY. Use [literal text] for brackets in the output.')
+			.setDesc('Moment-style format tokens are supported. Use square brackets around literal text for brackets in the output.')
 			.addText(text => text
 				.setValue(this.plugin.settings.dateFormat)
 				.onChange(async (value) => {
@@ -521,8 +519,7 @@ class HumanReadableDatesSettingTab extends PluginSettingTab {
 		}
 		const compiled = compileDateFormat(format)
 		if (!compiled) {
-			// eslint-disable-next-line obsidianmd/ui/sentence-case
-			this.formatWarningEl.setText('No recognized date tokens found. Use YYYY, MM, MMM, DD, ddd, HH, mm.')
+			this.formatWarningEl.setText('No recognized date tokens found. Use year, month, day, weekday, hour, or minute tokens.')
 		} else {
 			this.formatWarningEl.setText('')
 		}
