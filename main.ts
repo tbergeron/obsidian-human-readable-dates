@@ -236,6 +236,36 @@ function parseDateString(dateString: string, format: string): Date | null {
 	return null
 }
 
+function formatYearsAndMonths(parsedDate: Date, now: Date, isFuture: boolean): string {
+	const parsedDay = moment(parsedDate).startOf('day');
+	const nowDay = moment(now).startOf('day');
+	const earlier = isFuture ? nowDay : parsedDay;
+	const later = isFuture ? parsedDay : nowDay;
+
+	const years = later.diff(earlier, 'years');
+	const afterYears = earlier.clone().add(years, 'years');
+	const months = later.diff(afterYears, 'months');
+
+	if (years === 0) {
+		if (months === 1) {
+			return isFuture ? 'Next month' : 'Last month';
+		}
+		return isFuture ? `In ${months} months` : `${months} months ago`;
+	}
+
+	if (months === 0) {
+		if (years === 1) {
+			return isFuture ? 'Next year' : 'Last year';
+		}
+		return isFuture ? `In ${years} years` : `${years} years ago`;
+	}
+
+	const yearLabel = years === 1 ? '1 year' : `${years} years`;
+	const monthLabel = months === 1 ? '1 month' : `${months} months`;
+	const interval = `${yearLabel} and ${monthLabel}`;
+	return isFuture ? `In ${interval}` : `${interval} ago`;
+}
+
 function formatDateAsHumanReadable(dateString: string, format: string): string | null {
 	const parsedDate = parseDateString(dateString, format);
 	if (!parsedDate) {
@@ -305,11 +335,9 @@ function formatDateAsHumanReadable(dateString: string, format: string): string |
 		const months = Math.ceil(absDiffDays / 30);
 		result = months === 1 ? 'Last month' : `${months} months ago`;
 	} else if (diffDays >= 365) {
-		const years = Math.floor(diffDays / 365);
-		result = years === 1 ? 'Next year' : `In ${years} years`;
+		result = formatYearsAndMonths(parsedDate, now, true);
 	} else {
-		const years = Math.floor(absDiffDays / 365);
-		result = years === 1 ? 'Last year' : `${years} years ago`;
+		result = formatYearsAndMonths(parsedDate, now, false);
 	}
 
 	return result;

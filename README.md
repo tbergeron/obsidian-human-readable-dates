@@ -16,7 +16,10 @@ The plugin shows different levels of precision based on how recent the date is:
 - **Days**: "Yesterday", "Tomorrow", "3 days ago", "In 5 days"
 - **Weeks**: "Last week", "Next week", "2 weeks ago"
 - **Months**: "Last month", "Next month", "3 months ago"
-- **Years**: "Last year", "Next year", "2 years ago"
+- **Years**: "Last year", "Next year", "1 year and 8 months ago", "In 2 years and 1 month"
+
+For dates at least one year away, the plugin shows complete calendar years and
+the remaining complete calendar months. It does not show remaining days.
 
 ### Supported Tokens
 
