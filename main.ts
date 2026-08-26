@@ -1,4 +1,4 @@
-import { moment, Plugin, PluginSettingTab, App, Setting } from 'obsidian'
+import { moment, Plugin, PluginSettingTab, App, Setting, editorLivePreviewField } from 'obsidian'
 import { Range } from '@codemirror/state'
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
 
@@ -367,12 +367,20 @@ export default class HumanReadableDates extends Plugin {
 				}
 
 				update(update: ViewUpdate) {
-					if (update.docChanged || update.viewportChanged || update.selectionSet) {
+					const livePreviewChanged =
+						update.startState.field(editorLivePreviewField, false) !==
+						update.state.field(editorLivePreviewField, false)
+
+					if (update.docChanged || update.viewportChanged || update.selectionSet || livePreviewChanged) {
 						this.decorations = this.buildDecorations(update.view);
 					}
 				}
 
 				buildDecorations(view: EditorView): DecorationSet {
+					if (!view.state.field(editorLivePreviewField, false)) {
+						return Decoration.set([])
+					}
+
 					const decorations: Range<Decoration>[] = [];
 					const doc = view.state.doc;
 					const text = doc.toString();
