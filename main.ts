@@ -298,17 +298,17 @@ function formatDateAsHumanReadable(dateString: string, format: string): string |
 	} else if (diffDays < -14 && diffDays >= -30) {
 		const weeks = Math.ceil(absDiffDays / 7);
 		result = `${weeks} weeks ago`;
-	} else if (diffDays > 30 && diffDays <= 365) {
+	} else if (diffDays > 30 && diffDays < 365) {
 		const months = Math.ceil(diffDays / 30);
 		result = months === 1 ? 'Next month' : `In ${months} months`;
-	} else if (diffDays < -30 && diffDays >= -365) {
+	} else if (diffDays < -30 && diffDays > -365) {
 		const months = Math.ceil(absDiffDays / 30);
 		result = months === 1 ? 'Last month' : `${months} months ago`;
-	} else if (diffDays > 365) {
-		const years = Math.ceil(diffDays / 365);
+	} else if (diffDays >= 365) {
+		const years = Math.floor(diffDays / 365);
 		result = years === 1 ? 'Next year' : `In ${years} years`;
 	} else {
-		const years = Math.ceil(absDiffDays / 365);
+		const years = Math.floor(absDiffDays / 365);
 		result = years === 1 ? 'Last year' : `${years} years ago`;
 	}
 
