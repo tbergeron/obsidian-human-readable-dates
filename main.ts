@@ -2,6 +2,24 @@ import { moment, Plugin, PluginSettingTab, App, Setting, editorLivePreviewField 
 import { Range } from '@codemirror/state'
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
 
+interface MomentInstance {
+	isValid(): boolean
+	toDate(): Date
+	startOf(unit: string): MomentInstance
+	diff(input: MomentInstance, unit: string): number
+	clone(): MomentInstance
+	add(value: number, unit: string): MomentInstance
+}
+
+type ObsidianMoment = {
+	(input: string | Date, format: string, strict: boolean): MomentInstance
+	(input: string | Date): MomentInstance
+}
+
+// Obsidian re-exports Moment at runtime without exposing its type to every
+// type-checker. Keep the compatibility cast at this boundary.
+const typedMoment = moment as unknown as ObsidianMoment
+
 interface HumanReadableDatesSettings {
 	dateFormat: string;
 }
@@ -38,16 +56,17 @@ class HumanReadableDateWidget extends WidgetType {
 	}
 
 	toDOM(view: EditorView) {
-		const doc = view.dom.ownerDocument;
+		const fragment = view.dom.ownerDocument.createDocumentFragment();
 		if (this.isLink && this.app) {
-			const link = doc.createElement('a');
-			link.className = 'human-readable-date human-readable-date-link';
-			link.textContent = this.humanReadable;
-			link.title = `Original: ${this.originalText}`;
+			const link = fragment.createEl('a', {
+				cls: 'human-readable-date human-readable-date-link',
+				text: this.humanReadable,
+				attr: { title: `Original: ${this.originalText}` }
+			});
 
 			const target = this.linkTarget ?? stripWikilinkBrackets(this.originalText);
 
-			link.addEventListener('click', (event) => {
+			link.addEventListener('click', (event: MouseEvent) => {
 				event.preventDefault();
 				event.stopPropagation();
 				void this.app?.workspace.openLinkText(target, '', false);
@@ -55,10 +74,11 @@ class HumanReadableDateWidget extends WidgetType {
 
 			return link;
 		} else {
-			const span = doc.createElement('span');
-			span.className = 'human-readable-date human-readable-date-plain';
-			span.title = `Original: ${this.originalText}`;
-			span.textContent = this.humanReadable;
+			const span = fragment.createEl('span', {
+				cls: 'human-readable-date human-readable-date-plain',
+				text: this.humanReadable,
+				attr: { title: `Original: ${this.originalText}` }
+			});
 
 			return span;
 		}
@@ -217,7 +237,7 @@ function createBracketedDateRegex(format: string): RegExp | null {
  */
 function parseDateString(dateString: string, format: string): Date | null {
 	// Strict Moment parsing — third argument `true` enables strict mode
-	const m = moment(dateString, format, true)
+	const m = typedMoment(dateString, format, true)
 	if (m.isValid()) {
 		const d = m.toDate()
 		if (Number.isFinite(d.getTime())) return d
@@ -226,7 +246,7 @@ function parseDateString(dateString: string, format: string): Date | null {
 	// Legacy exception: if the full format fails and this is the legacy
 	// default format, try without the time component.
 	if (format === LEGACY_OPTIONAL_TIME_FORMAT) {
-		const mFallback = moment(dateString, LEGACY_OPTIONAL_TIME_FORMAT_NO_TIME, true)
+		const mFallback = typedMoment(dateString, LEGACY_OPTIONAL_TIME_FORMAT_NO_TIME, true)
 		if (mFallback.isValid()) {
 			const d = mFallback.toDate()
 			if (Number.isFinite(d.getTime())) return d
@@ -237,8 +257,8 @@ function parseDateString(dateString: string, format: string): Date | null {
 }
 
 function formatYearsAndMonths(parsedDate: Date, now: Date, isFuture: boolean): string {
-	const parsedDay = moment(parsedDate).startOf('day');
-	const nowDay = moment(now).startOf('day');
+	const parsedDay = typedMoment(parsedDate).startOf('day');
+	const nowDay = typedMoment(now).startOf('day');
 	const earlier = isFuture ? nowDay : parsedDay;
 	const later = isFuture ? parsedDay : nowDay;
 
