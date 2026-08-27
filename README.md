@@ -13,8 +13,8 @@ The plugin shows different levels of precision based on how recent the date is:
 - **Within 5 minutes**: "Now"
 - **5-59 minutes**: "15 mins ago", "30 mins ago", "In 20 mins"
 - **1-23 hours**: "2 hours ago", "5 hours ago", "In 8 hours"
-- **Days**: "Yesterday", "Tomorrow", "3 days ago", "In 5 days"
-- **Weeks**: "Last week", "Next week", "2 weeks ago"
+- **Days**: "Yesterday", "Tomorrow", "8 days ago", "In 13 days"
+- **Weeks**: "2 weeks ago", "In 2 weeks", "3 weeks ago"
 - **Months**: "Last month", "Next month", "3 months ago"
 - **Years**: "Last year", "Next year", "1 year and 8 months ago", "In 2 years and 1 month"
 

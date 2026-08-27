@@ -314,14 +314,14 @@ function formatDateAsHumanReadable(dateString: string, format: string): string |
 		result = 'Tomorrow';
 	} else if (diffDays === -1) {
 		result = 'Yesterday';
-	} else if (diffDays > 1 && diffDays <= 7) {
+	} else if (diffDays > 1 && diffDays < 14) {
 		result = `In ${diffDays} days`;
-	} else if (diffDays < -1 && diffDays >= -7) {
+	} else if (diffDays < -1 && diffDays > -14) {
 		result = `${absDiffDays} days ago`;
-	} else if (diffDays > 7 && diffDays <= 14) {
-		result = 'Next week';
-	} else if (diffDays < -7 && diffDays >= -14) {
-		result = 'Last week';
+	} else if (diffDays === 14) {
+		result = 'In 2 weeks';
+	} else if (diffDays === -14) {
+		result = '2 weeks ago';
 	} else if (diffDays > 14 && diffDays <= 30) {
 		const weeks = Math.ceil(diffDays / 7);
 		result = `In ${weeks} weeks`;
