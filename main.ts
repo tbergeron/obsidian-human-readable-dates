@@ -338,16 +338,10 @@ function formatDateAsHumanReadable(dateString: string, format: string): string |
 		result = `In ${diffDays} days`;
 	} else if (diffDays < -1 && diffDays > -14) {
 		result = `${absDiffDays} days ago`;
-	} else if (diffDays === 14) {
-		result = 'In 2 weeks';
-	} else if (diffDays === -14) {
-		result = '2 weeks ago';
-	} else if (diffDays > 14 && diffDays <= 30) {
-		const weeks = Math.ceil(diffDays / 7);
-		result = `In ${weeks} weeks`;
-	} else if (diffDays < -14 && diffDays >= -30) {
-		const weeks = Math.ceil(absDiffDays / 7);
-		result = `${weeks} weeks ago`;
+	} else if (diffDays > 1 && diffDays <= 30) {
+		result = `In ${diffDays} days`;
+	} else if (diffDays < -1 && diffDays >= -30) {
+		result = `${absDiffDays} days ago`;
 	} else if (diffDays > 30 && diffDays < 365) {
 		const months = Math.ceil(diffDays / 30);
 		result = months === 1 ? 'Next month' : `In ${months} months`;
