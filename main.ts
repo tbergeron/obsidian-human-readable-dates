@@ -12,7 +12,7 @@ interface MomentInstance {
 }
 
 type ObsidianMoment = {
-	(input: string | Date, format: string, strict: boolean): MomentInstance
+	(input: string | Date, format: string | string[], strict: boolean): MomentInstance
 	(input: string | Date): MomentInstance
 }
 
@@ -286,12 +286,28 @@ function formatYearsAndMonths(parsedDate: Date, now: Date, isFuture: boolean): s
 	return isFuture ? `In ${interval}` : `${interval} ago`;
 }
 
+const ALIAS_TIME_FORMATS = ['h:mm A', 'h:mm a', 'H:mm']
+
+/**
+ * Handle links like [[Wed Nov 25 2026|12:33 AM]]: the target holds the date
+ * and the alias holds only the time. Returns the combined Date, or null.
+ */
+function parseDateWithAliasTime(target: string, alias: string, format: string): Date | null {
+	const date = parseDateString(target, format)
+	if (!date) return null
+	const time = typedMoment(alias.trim(), ALIAS_TIME_FORMATS, true)
+	if (!time.isValid()) return null
+	const t = time.toDate()
+	date.setHours(t.getHours(), t.getMinutes(), 0, 0)
+	return date
+}
+
 function formatDateAsHumanReadable(dateString: string, format: string): string | null {
 	const parsedDate = parseDateString(dateString, format);
-	if (!parsedDate) {
-		return null;
-	}
+	return parsedDate ? formatRelative(parsedDate) : null;
+}
 
+function formatRelative(parsedDate: Date): string {
 	const now = new Date();
 	const diffMs = parsedDate.getTime() - now.getTime();
 	const diffHours = diffMs / (1000 * 60 * 60);
@@ -454,6 +470,10 @@ export default class HumanReadableDates extends Plugin {
 						let humanReadable: string | null = null;
 						if (alias) {
 							humanReadable = formatDateAsHumanReadable(alias, format);
+							if (!humanReadable) {
+								const combined = parseDateWithAliasTime(target, alias, format);
+								if (combined) humanReadable = formatRelative(combined);
+							}
 						}
 						if (!humanReadable) {
 							humanReadable = formatDateAsHumanReadable(target, format);
